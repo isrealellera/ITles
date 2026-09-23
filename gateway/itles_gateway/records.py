@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import struct
 from dataclasses import dataclass, field
 
 
@@ -31,6 +32,8 @@ class Mapping:
     #   {"oil_level_pct": {"tag": 0x50, "table": [[0, 0], [9800, 100]]}}  Galileosky tag (mV) + calibration
     #   {"oil_level_low": {"tag": 0x46, "bit": 2}}              Galileosky discrete input bit
     #   {"oil_level_pct": {"egts_an": 1, "scale": 0.1}}         EGTS ABS_AN_SENS_DATA input number
+    #   {"oil_water_aw": {"tag": 0xE2, "float": True}}          Galileosky user tag (RS-485/Modbus algorithm), IEEE-754
+    #   {"oil_level_low": {"tag": 0x50, "threshold": 1900, "when": "below"}}  current-type level switch via shunt
     sensors: dict = field(default_factory=dict)
 
     @staticmethod
@@ -81,13 +84,21 @@ def apply_sensors(mapping: Mapping, rec: dict, *, params: dict | None = None, ta
         elif tags is not None and "tag" in spec and spec["tag"] in tags:
             b = tags[spec["tag"]]
             off = spec.get("byte_offset", 0)
-            raw = int.from_bytes(b[off: off + spec.get("bytes", len(b) - off)], "little", signed=spec.get("signed", False))
+            if spec.get("float"):
+                raw = struct.unpack_from("<f", b, off)[0] if len(b) >= off + 4 else None
+            else:
+                raw = int.from_bytes(b[off: off + spec.get("bytes", len(b) - off)], "little", signed=spec.get("signed", False))
         elif analog is not None and "egts_an" in spec:
             raw = analog.get(spec["egts_an"])
         if not isinstance(raw, (int, float)) or isinstance(raw, bool):
             continue
+        if isinstance(raw, float) and raw != raw:  # NaN from an unset float register
+            continue
         if "bit" in spec:
             val = float((int(raw) >> spec["bit"]) & 1)
+        elif "threshold" in spec:
+            hit = raw < spec["threshold"] if spec.get("when") == "below" else raw >= spec["threshold"]
+            val = 1.0 if hit else 0.0
         elif "table" in spec:
             val = _interp(spec["table"], raw)
         else:

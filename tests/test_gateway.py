@@ -251,3 +251,19 @@ def test_oil_sensors_wialon_param_galileosky_tag_table_and_bit_egts_analog():
     e.ext_id = "preset"
     out = e.feed(sim_egts.transport(sim_egts.record(5, 2, sim_egts.pos_data(p) + sim_egts.abs_analog(p.analog)), 9))
     assert out[0][0][0]["sensors"] == {"hyd_temp_c": 86.0}
+
+
+def test_oil_sensor_float_user_tag_and_current_switch_threshold():
+    # Galileosky: Modbus value written by the RS-485 exchange algorithm into user tag 0xE2 as IEEE-754 float;
+    # СУЖ-type current switch read through a shunt on analog input 0x50 (low current in air = below minimum)
+    def rec(mv, aw):
+        return sim_gs.GalileoRecord(index=4, t=1789466700, lat=61.78, lon=34.34, valid=True, sats=10, speed_kmh=0, course=0,
+                                    alt_m=100, hdop=0.9, inputs=0, power_mv=27000, gps_odometer_m=0, analog_mv={0x50: mv},
+                                    extra_tags={0xE2: struct.pack("<f", aw)})
+    g = GalileoskySession(Mapping(sensors={"oil_water_aw": {"tag": 0xE2, "float": True},
+                                           "oil_level_low": {"tag": 0x50, "threshold": 1900, "when": "below"}}))
+    g.feed(sim_gs.head_packet("356307042441013"))
+    (low, _), = g.feed(sim_gs.records_packets([rec(1650, 0.37)], archive=False)[0])
+    (ok, _), = g.feed(sim_gs.records_packets([rec(2100, 0.41)], archive=False)[0])
+    assert low[0]["sensors"] == {"oil_water_aw": 0.37, "oil_level_low": 1.0}
+    assert ok[0]["sensors"] == {"oil_water_aw": 0.41, "oil_level_low": 0.0}
