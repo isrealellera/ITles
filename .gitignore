@@ -4,3 +4,13 @@
 __pycache__/
 .pytest_cache/
 /.context/
+# platform
+platform/node_modules/
+platform/dist/
+platform/.data/
+platform/.vercel-out/
+platform/test-results/
+platform/playwright-report/
+# gateway
+gateway/*.sqlite3*
+gateway/**/__pycache__/
