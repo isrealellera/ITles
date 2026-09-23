@@ -2,8 +2,8 @@ import { createRoot } from 'react-dom/client';
 import '../styles.css';
 
 const DOWNLOADS = [
-  { os: 'Android', file: './downloads/ITles.apk', note: 'Телефон или планшет в кабине и кабинет руководителя. Установка из файла APK.' },
-  { os: 'Windows', file: './downloads/ITles-Setup.exe', note: 'Кабинет для ПК: карта парка, моточасы, пробег, обслуживание.' },
+  { os: 'Android', file: 'https://github.com/isrealellera/ITles/releases/download/v0.2.0-preview/ITles.apk', note: 'Телефон или планшет в кабине и кабинет руководителя. Файл APK (Android 7+): разрешите установку из этого источника.' },
+  { os: 'Windows', file: 'https://github.com/isrealellera/ITles/releases/download/v0.2.0-preview/ITles-Windows-x64.zip', note: 'Кабинет для ПК (Windows 10/11, x64): распакуйте архив и запустите ITles.exe.' },
   { os: 'iPhone / iPad', file: './app/', note: 'Откройте в Safari → «Поделиться» → «На экран Домой». Работает как приложение.' },
   { os: 'Веб-кабинет', file: './app/', note: 'Любой браузер на ПК или телефоне, без установки.' },
 ];
