@@ -1,3 +1,21 @@
+# ITles — моточасы, пробег и местоположение спецтехники (FUCHS)
+
+**v2 — работающая система.** Устройство, проверки и ответы заказчика описаны в [docs/design/DESIGN-v2.md](docs/design/DESIGN-v2.md).
+
+| Часть | Где | Проверка |
+|---|---|---|
+| API + веб-кабинет + лендинг + «Телефон в кабине» | `platform/` | `cd platform && pnpm test` (PGlite; `TEST_DATABASE_URL=postgres://…` — на PostgreSQL), `pnpm e2e` (Playwright) |
+| Шлюз трекеров (EGTS, Wialon IPS, Galileosky, Wialon Retranslator) | `gateway/` | `python -m pytest tests` (реальные пакеты устройств) |
+| Сквозной прогон трекер → шлюз → платформа | `scripts/gateway_e2e.py` | `docs/evidence/gateway-e2e.json` |
+| Проверка одометрии | `scripts/odometry_validation.py` | `docs/evidence/odometry-validation.json` |
+| Windows / Android | `apps/desktop`, `apps/mobile` | сборки — в [релизе v0.2.0-preview](https://github.com/isrealellera/ITles/releases/tag/v0.2.0-preview) |
+
+Запуск на своём сервере (VPS): `cd platform && pnpm install && pnpm build && DATABASE_URL=postgres://… SETUP_KEY=… GATEWAY_TOKEN=… node --import tsx dev/server.ts`;
+шлюз: `cd gateway && ITLES_API_URL=https://… GATEWAY_TOKEN=… python3 -m itles_gateway`.
+Vercel: `pnpm build:vercel` формирует `.vercel/output` (Build Output API v3).
+
+---
+
 # ITles × FUCHS — телематика моточасов, пробега и местоположения спецтехники
 
 Технический проект и проверочный стенд системы «устройство на машине → сервер → ПК/телефон»

@@ -7,7 +7,7 @@ Implements the subset needed for telematics: auth (TERM_IDENTITY) and teledata
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..crc import crc8_egts, crc16_ccitt
 
@@ -15,7 +15,7 @@ EPOCH_2010 = 1262304000
 PT_RESPONSE, PT_APPDATA = 0, 1
 SERVICE_AUTH, SERVICE_TELEDATA = 1, 2
 SR_RECORD_RESPONSE, SR_TERM_IDENTITY, SR_RESULT_CODE = 0, 1, 9
-SR_POS_DATA, SR_EXT_POS_DATA, SR_COUNTERS_DATA, SR_ABS_CNTR_DATA = 16, 17, 19, 25
+SR_POS_DATA, SR_EXT_POS_DATA, SR_COUNTERS_DATA, SR_ABS_AN_SENS_DATA, SR_ABS_CNTR_DATA = 16, 17, 19, 24, 25
 
 
 @dataclass
@@ -34,6 +34,7 @@ class EgtsPoint:
     moving: bool
     blackbox: bool
     counters: dict[int, int]  # ABS_CNTR number -> raw 24-bit value
+    analog: dict[int, int] = field(default_factory=dict)  # ABS_AN_SENS number -> raw 24-bit value
 
 
 def transport(sfrd: bytes, packet_id: int, packet_type: int = PT_APPDATA) -> bytes:
@@ -83,9 +84,13 @@ def abs_counters(counters: dict[int, int]) -> bytes:
     return b"".join(subrecord(SR_ABS_CNTR_DATA, bytes([n]) + (v & 0xFFFFFF).to_bytes(3, "little")) for n, v in counters.items())
 
 
+def abs_analog(values: dict[int, int]) -> bytes:
+    return b"".join(subrecord(SR_ABS_AN_SENS_DATA, bytes([n]) + (v & 0xFFFFFF).to_bytes(3, "little")) for n, v in values.items())
+
+
 def teledata_records(points: list[EgtsPoint], first_record_number: int) -> bytes:
     return b"".join(
-        record(first_record_number + i, SERVICE_TELEDATA, pos_data(p) + ext_pos_data(p) + abs_counters(p.counters))
+        record(first_record_number + i, SERVICE_TELEDATA, pos_data(p) + ext_pos_data(p) + abs_counters(p.counters) + abs_analog(p.analog))
         for i, p in enumerate(points)
     )
 

@@ -54,8 +54,10 @@ class GalileoRecord:
     coolant_c: int | None = None
     fuel_level_pct: float | None = None
     fuel_total_raw: int | None = None  # SPN 250 raw, 0.5 L/bit
-    can_b0_raw: int | None = None  # H-GS-1: SPN 917 raw, 5 m/bit
-    can_b1_raw: int | None = None  # H-GS-1: SPN 247 raw, 0.05 h/bit
+    can_b0_raw: int | None = None  # tag 0xC2 (FMS): vehicle distance, value*5 = m
+    engine_hours_x100: int | None = None  # tag 0xDB (FMS): total engine hours, value/100 = h
+    analog_mv: dict[int, int] | None = None  # tags 0x50..0x57: analog input voltage, mV
+    extra_tags: dict[int, bytes] | None = None  # raw tags, e.g. user data 0xE2..0xE9 (4 bytes)
 
 
 def frame(payload: bytes, archive: bool = False) -> bytes:
@@ -92,9 +94,13 @@ def record_tags(r: GalileoRecord) -> bytes:
         out += bytes([0xC1, fuel, coolant]) + struct.pack("<H", round(r.rpm / 0.125))
     if r.can_b0_raw is not None:
         out += bytes([0xC2]) + struct.pack("<I", r.can_b0_raw)
-    if r.can_b1_raw is not None:
-        out += bytes([0xC3]) + struct.pack("<I", r.can_b1_raw)
+    if r.engine_hours_x100 is not None:
+        out += bytes([0xDB]) + struct.pack("<I", r.engine_hours_x100)
     out += bytes([0xD4]) + struct.pack("<I", r.gps_odometer_m)
+    for tag, mv in sorted((r.analog_mv or {}).items()):
+        out += bytes([tag]) + struct.pack("<H", mv)
+    for tag, raw in sorted((r.extra_tags or {}).items()):
+        out += bytes([tag]) + raw
     return bytes(out)
 
 

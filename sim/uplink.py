@@ -22,10 +22,11 @@ def galileo_record(r: Record) -> galileosky.GalileoRecord:
     return galileosky.GalileoRecord(
         r.index, r.t, r.lat, r.lon, r.valid, r.sats, r.speed_kmh, r.course, r.alt_m, r.hdop,
         1 if r.ignition else 0, round(r.power_v * 1000), round(r.gps_odometer_m),
-        r.rpm, r.coolant_c, r.fuel_level_pct, r.fuel_total_raw, r.can_distance_raw, r.can_hours_raw)
+        r.rpm, r.coolant_c, r.fuel_level_pct, r.fuel_total_raw, r.can_distance_raw,
+        None if r.can_hours_raw is None else r.can_hours_raw * 5)  # SPN 247 0.05 h/bit -> 0xDB 0.01 h
 
 
-def send_galileosky(host: str, port: int, imei: str, records: list[Record], late_s: int = 120) -> dict:
+def send_galileosky(host: str, port: int, imei: str, records: list[Record], late_s: int = 120, extra=None) -> dict:
     stats = {"packets": 0, "bytes": 0, "acks_ok": 0}
     groups: list[tuple[bool, list[Record]]] = []
     for r in records:
@@ -37,7 +38,11 @@ def send_galileosky(host: str, port: int, imei: str, records: list[Record], late
             groups.append((archived, [r]))
     packets = [galileosky.head_packet(imei)]
     for archived, group in groups:
-        packets += galileosky.records_packets([galileo_record(x) for x in group], archive=archived)
+        recs = [galileo_record(x) for x in group]
+        if extra:
+            for gr, x in zip(recs, group):
+                gr.analog_mv = extra(x)
+        packets += galileosky.records_packets(recs, archive=archived)
     with socket.create_connection((host, port), timeout=10) as sock:
         for p in packets:
             sock.sendall(p)
@@ -63,7 +68,7 @@ def wialon_message(r: Record, hours_method: str) -> wialon_ips.WialonMessage:
                                     1 if r.ignition else 0, params)
 
 
-def send_wialon(host: str, port: int, imei: str, records: list[Record], hours_method: str, chunk: int = 100) -> dict:
+def send_wialon(host: str, port: int, imei: str, records: list[Record], hours_method: str, chunk: int = 100, extra=None) -> dict:
     stats = {"packets": 0, "bytes": 0, "acks_ok": 0}
     with socket.create_connection((host, port), timeout=10) as sock:
         reader = sock.makefile("rb")
@@ -72,7 +77,11 @@ def send_wialon(host: str, port: int, imei: str, records: list[Record], hours_me
         stats["login_reply"] = reader.readline().decode().strip()
         for i in range(0, len(records), chunk):
             part = records[i : i + chunk]
-            packet = wialon_ips.blackbox([wialon_message(r, hours_method) for r in part])
+            msgs = [wialon_message(r, hours_method) for r in part]
+            if extra:
+                for msg, r in zip(msgs, part):
+                    msg.params.update(extra(r))
+            packet = wialon_ips.blackbox(msgs)
             sock.sendall(packet)
             reply = reader.readline().decode().strip()
             stats["packets"] += 1
@@ -94,7 +103,7 @@ def egts_point(r: Record, hours_method: str) -> egts.EgtsPoint:
                           r.delivered_t is not None and r.delivered_t - r.t > 120, counters)
 
 
-def send_egts(host: str, port: int, imei: str, records: list[Record], hours_method: str, chunk: int = 20) -> dict:
+def send_egts(host: str, port: int, imei: str, records: list[Record], hours_method: str, chunk: int = 20, extra=None) -> dict:
     stats = {"packets": 0, "bytes": 0, "responses": 0, "response_crc_ok": 0, "sent_packets": []}
     with socket.create_connection((host, port), timeout=10) as sock:
         pid = 1
@@ -102,7 +111,11 @@ def send_egts(host: str, port: int, imei: str, records: list[Record], hours_meth
         outgoing = [auth]
         for i in range(0, len(records), chunk):
             pid += 1
-            outgoing.append(egts.transport(egts.teledata_records([egts_point(r, hours_method) for r in records[i : i + chunk]], i + 2), pid))
+            pts = [egts_point(r, hours_method) for r in records[i : i + chunk]]
+            if extra:
+                for pt, r in zip(pts, records[i : i + chunk]):
+                    pt.analog = extra(r)
+            outgoing.append(egts.transport(egts.teledata_records(pts, i + 2), pid))
         buffer = b""
 
         def consume() -> int:
