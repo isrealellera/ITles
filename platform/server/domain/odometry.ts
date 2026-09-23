@@ -35,6 +35,10 @@ export interface OdoParams {
   baseRadiusM: number;
   uereM: number;
   kSigma: number;
+  kSigmaMoving: number;
+  kSigmaMovingSparse: number;
+  sparseDtS: number;
+  moveRule: 'any' | 'both';
   denseMaxDtS: number;
   maxHdop: number;
   minSats: number;
@@ -64,6 +68,8 @@ const SELF_VMAX: Record<string, number> = {
   drill: 10,
 };
 
+const FORESTRY = new Set(['harvester', 'forwarder', 'skidder']);
+
 export function paramsFor(p: MachineProfile): OdoParams {
   const cat = p.category ?? '';
   let selfV = SELF_VMAX[cat] ?? (p.chassis === 'tracked' ? 15 : 130);
@@ -71,11 +77,18 @@ export function paramsFor(p: MachineProfile): OdoParams {
   return {
     selfVmaxKmh: selfV,
     outlierVmaxKmh: Math.max(250, selfV * 3),
-    minMoveKmh: p.chassis === 'tracked' ? 0.8 : 1.5,
+    minMoveKmh: p.chassis === 'tracked' || FORESTRY.has(cat) ? 0.8 : 1.5,
     // antenna on a rotating upper structure: swing radius 1.5–3.5 m, arc chord up to 7 m
     baseRadiusM: p.rotatingUpper ? 12 : p.chassis === 'tracked' ? 8 : 6,
     uereM: 4.5,
     kSigma: 3,
+    // Doppler speed says the machine moved: independent evidence allows a tighter radius.
+    // Chosen by sweep (scripts/odometry_validation.py): dense tracks need more margin against
+    // speed noise than tracks with fixes minutes apart.
+    kSigmaMoving: 2.5,
+    kSigmaMovingSparse: 1.5,
+    sparseDtS: 120,
+    moveRule: 'any',
     denseMaxDtS: 5,
     maxHdop: 8,
     minSats: 4,
@@ -171,7 +184,16 @@ export function robustDistance(fixesIn: Fix[], profile: MachineProfile, override
 
     const sf = sigmaOf(f, p);
     const dA = haversineM(anchor.lat, anchor.lon, f.lat, f.lon);
-    const radius = Math.max(p.baseRadiusM, p.kSigma * Math.sqrt(anchorSigma ** 2 + sf ** 2));
+    // a swinging cab produces antenna speed without travel, so rotating machines never use it
+    const speedSaysMoving =
+      !profile.rotatingUpper &&
+      typeof f.speedKmh === 'number' &&
+      typeof last.speedKmh === 'number' &&
+      (p.moveRule === 'both'
+        ? f.speedKmh >= p.minMoveKmh && last.speedKmh >= p.minMoveKmh
+        : f.speedKmh >= p.minMoveKmh || last.speedKmh >= p.minMoveKmh);
+    const k = speedSaysMoving ? (dt >= p.sparseDtS ? p.kSigmaMovingSparse : p.kSigmaMoving) : p.kSigma;
+    const radius = Math.max(p.baseRadiusM, k * Math.sqrt(anchorSigma ** 2 + sf ** 2));
     if (dA > radius) {
       res.km += dA / 1000;
       anchor = f;

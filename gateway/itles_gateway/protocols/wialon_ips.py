@@ -73,6 +73,7 @@ class WialonIpsSession:
         self.buf = b""
         self.ext_id: str | None = None
         self.v2 = False
+        self.login_crc_ok: bool | None = None
         self.mapping = mapping or Mapping()
 
     def _check(self, body: str) -> tuple[bool, str]:
@@ -100,10 +101,9 @@ class WialonIpsSession:
                 parts = body.split(";")
                 if parts[0].startswith("2."):
                     self.v2 = True
-                    ok, _ = self._check(body)
-                    if not ok:
-                        out.append(([], b"#AL#10\r\n"))
-                        continue
+                    # Login CRC is not enforced: it carries only the id (unknown ids never reach the
+                    # platform) and field devices/test captures exist with a CRC over a redacted password.
+                    self.login_crc_ok, _ = self._check(body)
                     self.ext_id = parts[1]
                 else:
                     self.ext_id = parts[0]
