@@ -14,3 +14,4 @@ platform/playwright-report/
 # gateway
 gateway/*.sqlite3*
 gateway/**/__pycache__/
+platform/.vercel/

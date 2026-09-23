@@ -7,11 +7,11 @@
   "scripts": {
     "dev": "tsx dev/server.ts",
     "build:ui": "vite build",
-    "build:api": "node scripts/build-api.mjs",
-    "build": "pnpm build:ui && pnpm build:api",
+    "build": "vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build:vercel": "vite build && node scripts/build-vercel.mjs"
   },
   "dependencies": {
     "leaflet": "1.9.4",
@@ -35,5 +35,10 @@
     "typescript": "7.0.2",
     "vite": "8.3.0",
     "vitest": "5.0.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
