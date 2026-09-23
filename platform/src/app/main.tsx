@@ -1,12 +1,15 @@
 import { createRoot } from 'react-dom/client';
 import { useCallback, useEffect, useState } from 'react';
+import { Building2, Droplets, LogOut, Plug, Truck, Wrench } from 'lucide-react';
 import '../styles.css';
 import { api, ApiError, apiBase, TOKEN_KEY } from './api';
+import { ThemeToggle } from './main-toggle';
 import { Fleet } from './pages/Fleet';
 import { MachinePage } from './pages/Machine';
 import { Orgs } from './pages/Orgs';
 import { Connect } from './pages/Connect';
 import { Service } from './pages/Service';
+import { Oil } from './pages/Oil';
 import { Login } from './pages/Login';
 import { Cab } from './cab/Cab';
 
@@ -32,6 +35,8 @@ function useHash(): string {
 
 export const go = (h: string) => (location.hash = h);
 
+const ROLE_RU = (me: Me) => (me.role === 'admin' ? (me.org_kind === 'customer' ? 'главный администратор' : 'администратор') : 'сотрудник');
+
 function App() {
   const hash = useHash();
   const [me, setMe] = useState<Me | null | undefined>(undefined);
@@ -45,7 +50,7 @@ function App() {
 
   // the cab screen works with a device token and without a user session
   if (hash.startsWith('#/cab')) return <Cab />;
-  if (me === undefined) return <div className="p-10 text-slate-500">Загрузка…</div>;
+  if (me === undefined) return <div className="p-10 text-muted-foreground">Загрузка…</div>;
   if (me === null) return <Login onDone={load} />;
 
   const logout = async () => {
@@ -54,46 +59,79 @@ function App() {
     setMe(null);
   };
   const parts = hash.slice(2).split('/');
-  const nav: Array<[string, string]> = [
-    ['#/', 'Парк'],
-    ['#/service', 'Обслуживание'],
-    ['#/orgs', me.org_kind === 'customer' ? 'Организация' : 'Организации'],
-    ['#/connect', 'Подключения'],
+  const nav = [
+    { h: '#/', t: 'Парк', icon: Truck },
+    { h: '#/oil', t: 'Масло', icon: Droplets },
+    { h: '#/service', t: 'Обслуживание', icon: Wrench },
+    { h: '#/orgs', t: me.org_kind === 'customer' ? 'Организация' : 'Организации', icon: Building2 },
+    { h: '#/connect', t: 'Подключения', icon: Plug },
   ];
   let page;
   if (parts[0] === 'machine' && parts[1]) page = <MachinePage id={parts[1]} me={me} />;
   else if (parts[0] === 'orgs') page = <Orgs me={me} />;
   else if (parts[0] === 'connect') page = <Connect me={me} />;
   else if (parts[0] === 'service') page = <Service me={me} />;
+  else if (parts[0] === 'oil') page = <Oil me={me} />;
   else page = <Fleet me={me} />;
   const active = (h: string) => (h === '#/' ? parts[0] === '' || parts[0] === 'machine' : hash.startsWith(h));
   return (
-    <div className="min-h-full">
-      <header className="sticky top-0 z-[1000] border-b border-slate-200 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-          <a href="#/" className="flex items-center gap-2 font-bold">
-            <img src="../favicon.svg" className="h-8 w-8" alt="" /> <span className="hidden sm:inline">ITles</span>
-          </a>
-          <nav className="flex flex-1 gap-1 overflow-x-auto text-sm">
-            {nav.map(([h, t]) => (
-              <a key={h} href={h} className={`whitespace-nowrap rounded-lg px-3 py-2 font-medium ${active(h) ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`}>
+    <div className="flex min-h-full">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-card px-3 py-4 md:flex">
+        <a href="#/" className="mb-5 flex items-center gap-2.5 px-2">
+          <img src="../favicon.svg" className="h-8 w-8 rounded-lg" alt="" />
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">ITles</div>
+            <div className="text-[11px] text-muted-foreground">мониторинг техники</div>
+          </div>
+        </a>
+        <div className="mb-4 rounded-lg border border-border px-3 py-2">
+          <div className="truncate text-[13px] font-medium">{me.org_name}</div>
+          <div className="text-[11px] text-muted-foreground">{ROLE_RU(me)}</div>
+        </div>
+        <nav className="flex flex-1 flex-col gap-0.5">
+          {nav.map(({ h, t, icon: Icon }) => (
+            <a
+              key={h}
+              href={h}
+              className={`group flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-colors ${
+                active(h) ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+              }`}
+            >
+              <Icon className={`h-4 w-4 ${active(h) ? 'text-primary' : ''}`} strokeWidth={1.75} />
+              {t}
+            </a>
+          ))}
+        </nav>
+        <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
+          <div className="min-w-0 px-2">
+            <div className="truncate text-[13px] font-medium">{me.login}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{(apiBase() || location.origin).replace(/^https?:\/\//, '')}</div>
+          </div>
+          <div className="flex items-center">
+            <ThemeToggle />
+            <button onClick={logout} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground" title="Выйти" aria-label="Выйти">
+              <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          </div>
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-[1000] flex items-center gap-2 border-b border-border bg-card/90 px-3 py-2 backdrop-blur md:hidden">
+          <img src="../favicon.svg" className="h-7 w-7 rounded-md" alt="" />
+          <nav className="flex flex-1 gap-1 overflow-x-auto text-[13px]">
+            {nav.map(({ h, t }) => (
+              <a key={h} href={h} className={`whitespace-nowrap rounded-md px-2.5 py-1.5 ${active(h) ? 'bg-accent font-medium text-foreground' : 'text-muted-foreground'}`}>
                 {t}
               </a>
             ))}
           </nav>
-          <div className="hidden text-right text-xs leading-tight text-slate-500 md:block">
-            <div className="font-semibold text-slate-800">{me.login}</div>
-            <div>
-              {me.org_name} · {me.role === 'admin' ? (me.org_kind === 'customer' ? 'главный администратор' : 'администратор') : 'сотрудник'}
-            </div>
-          </div>
-          <button onClick={logout} className="btn-ghost px-3 py-1.5 text-xs">
-            Выйти
+          <ThemeToggle />
+          <button onClick={logout} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground" aria-label="Выйти">
+            <LogOut className="h-4 w-4" strokeWidth={1.75} />
           </button>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">{page}</main>
-      <footer className="mx-auto max-w-7xl px-4 pb-8 text-xs text-slate-400">Сервер: {apiBase() || location.origin}</footer>
+        </header>
+        <main className="mx-auto max-w-7xl px-4 py-6 md:px-8">{page}</main>
+      </div>
     </div>
   );
 }

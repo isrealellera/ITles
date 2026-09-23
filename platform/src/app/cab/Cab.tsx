@@ -33,10 +33,10 @@ function Pair({ onDone }: { onDone: () => void }) {
     }
   };
   return (
-    <div className="flex min-h-full items-center justify-center bg-brand-900 p-4">
+    <div className="dark flex min-h-full items-center justify-center bg-background p-4 text-foreground">
       <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-7 text-center">
         <h1 className="text-xl font-bold">Телефон в кабине</h1>
-        <p className="text-sm text-slate-600">Введите 6 цифр со страницы машины в кабинете ITles («Источники данных» → «Телефон в кабине»).</p>
+        <p className="text-sm text-muted-foreground">Введите 6 цифр со страницы машины в кабинете ITles («Источники данных» → «Телефон в кабине»).</p>
         <input
           className="input text-center font-mono text-3xl tracking-[0.4em]"
           inputMode="numeric"
@@ -49,7 +49,7 @@ function Pair({ onDone }: { onDone: () => void }) {
         <button className="btn-primary w-full" disabled={code.length !== 6}>
           Подключить
         </button>
-        <a href="#/" className="block text-xs text-slate-500">
+        <a href="#/" className="block text-xs text-muted-foreground">
           ← Кабинет
         </a>
       </form>
@@ -248,54 +248,54 @@ export function Cab() {
   };
   const acc = fix?.coords.accuracy;
   return (
-    <div className="min-h-full bg-slate-900 p-4 text-white">
+    <div className="dark min-h-full bg-background p-4 text-foreground">
       <div className="mx-auto max-w-md space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs uppercase tracking-wide text-slate-400">Телефон в кабине</div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">Телефон в кабине</div>
             <div className="text-xl font-bold">{cfg.machine.name}</div>
           </div>
-          <a href="#/" className="text-xs text-slate-400">
+          <a href="#/" className="text-xs text-muted-foreground">
             кабинет
           </a>
         </div>
         {!active ? (
-          <button onClick={start} className="w-full rounded-2xl bg-emerald-500 py-6 text-xl font-bold text-slate-900">
+          <button onClick={start} className="w-full rounded-2xl bg-primary py-6 text-xl font-bold text-primary-foreground">
             Начать работу
           </button>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-slate-800 p-4">
-              <div className="text-xs text-slate-400">Двигатель</div>
-              <div className={`text-2xl font-bold ${engine ? 'text-emerald-400' : 'text-slate-300'}`}>{engine ? 'работает' : 'остановлен'}</div>
-              <div className="text-xs text-slate-500">вибрация {det.current.lastRms.toFixed(3)}</div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="text-xs text-muted-foreground">Двигатель</div>
+              <div className={`text-2xl font-bold ${engine ? 'text-success' : 'text-foreground'}`}>{engine ? 'работает' : 'остановлен'}</div>
+              <div className="text-xs text-muted-foreground">вибрация {det.current.lastRms.toFixed(3)}</div>
             </div>
-            <div className="rounded-2xl bg-slate-800 p-4">
-              <div className="text-xs text-slate-400">Работа двигателя (оценка)</div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="text-xs text-muted-foreground">Работа двигателя (оценка)</div>
               <div className="text-2xl font-bold">≈ {hours.toFixed(1)} ч</div>
-              <div className="text-xs text-slate-500">калибруется по счётчику</div>
+              <div className="text-xs text-muted-foreground">калибруется по счётчику</div>
             </div>
-            <div className="rounded-2xl bg-slate-800 p-4">
-              <div className="text-xs text-slate-400">ГНСС</div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="text-xs text-muted-foreground">ГНСС</div>
               <div className="text-2xl font-bold">{gpsErr ? '—' : acc ? `±${Math.round(acc)} м` : '…'}</div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-muted-foreground">
                 {gpsErr ?? (cfg.location_enabled ? 'координаты передаются' : 'местоположение выключено владельцем: считаем только пробег')}
               </div>
             </div>
-            <div className="rounded-2xl bg-slate-800 p-4">
-              <div className="text-xs text-slate-400">Очередь отправки</div>
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="text-xs text-muted-foreground">Очередь отправки</div>
               <div className="text-2xl font-bold">{queued}</div>
-              <div className="text-xs text-slate-500">{syncErr ?? `отправлено ${ago(lastSync)}`}</div>
+              <div className="text-xs text-muted-foreground">{syncErr ?? `отправлено ${ago(lastSync)}`}</div>
             </div>
           </div>
         )}
-        <form onSubmit={sendReading} className="space-y-2 rounded-2xl bg-slate-800 p-4">
+        <form onSubmit={sendReading} className="space-y-2 rounded-2xl border border-border bg-card p-4">
           <div className="font-semibold">Показание счётчика моточасов</div>
-          <input className="input text-lg text-slate-900" inputMode="decimal" placeholder="например 4521,4" value={reading} onChange={(e) => setReading(e.target.value)} required />
-          <button className="w-full rounded-xl bg-brand-500 py-3 font-semibold">Отправить</button>
-          {msg && <div className="text-sm text-slate-300">{msg}</div>}
+          <input className="input text-lg" inputMode="decimal" placeholder="например 4521,4" value={reading} onChange={(e) => setReading(e.target.value)} required />
+          <button className="w-full rounded-xl bg-primary py-3 font-semibold text-primary-foreground">Отправить</button>
+          {msg && <div className="text-sm text-foreground">{msg}</div>}
         </form>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           Держите телефон закреплённым в кабине и на зарядке. Без связи данные хранятся в телефоне и отправятся автоматически.
         </p>
       </div>

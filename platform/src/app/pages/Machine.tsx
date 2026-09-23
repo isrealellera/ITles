@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import type { Me } from '../main';
 import { api, apiBase, CATEGORY_RU, fmt, METHOD_RU, SOURCE_RU } from '../api';
 import { Bars, ErrorLine, Fresh, MapView, Modal, useAsync } from '../ui';
+import { Line, OilHowTo, STATUS_CLS, STATUS_RU, fmtSensor } from '../oil';
+import { SENSORS } from '../../../server/domain/sensors';
 
 const GATEWAY_HOST = 'gw.itles.ru';
 
@@ -77,19 +79,19 @@ function SourcesBlock({ id, sources, canManage, onChange }: { id: string; source
   };
   return (
     <div className="space-y-3">
-      {sources.length === 0 && <p className="text-sm text-slate-500">Источников пока нет — подключите телефон, трекер или платформу.</p>}
+      {sources.length === 0 && <p className="text-sm text-muted-foreground">Источников пока нет — подключите телефон, трекер или платформу.</p>}
       {sources.map((s) => (
-        <div key={s.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm">
+        <div key={s.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm">
           <div>
             <div className="font-semibold">{SOURCE_RU[s.kind] ?? s.kind}</div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-muted-foreground">
               {s.external_id ? `ID ${s.external_id}` : s.label} {s.connector_label ? '· ' + s.connector_label : ''}
               {s.kind === 'phone' && !s.paired ? ' · ожидает сопряжения' : ''}
             </div>
           </div>
           {canManage && (
             <button
-              className="text-xs text-rose-600 hover:underline"
+              className="text-xs text-danger hover:underline"
               onClick={async () => {
                 if (confirm('Отключить источник? Полученные данные сохранятся.')) {
                   await api('DELETE', `/api/sources/${s.id}`);
@@ -113,9 +115,9 @@ function SourcesBlock({ id, sources, canManage, onChange }: { id: string; source
         </div>
       )}
       {tracker && (
-        <form onSubmit={addTracker} className="space-y-2 rounded-xl bg-slate-50 p-3 text-sm">
+        <form onSubmit={addTracker} className="space-y-2 rounded-xl bg-muted p-3 text-sm">
           <input className="input" placeholder="IMEI трекера (15 цифр)" inputMode="numeric" value={imei} onChange={(e) => setImei(e.target.value)} required />
-          <div className="text-xs text-slate-600">
+          <div className="text-xs text-muted-foreground">
             В настройках трекера добавьте второй сервер (основной оставьте как есть): <b>{GATEWAY_HOST}</b>, порт по протоколу — EGTS <b>5037</b>, Wialon IPS{' '}
             <b>5039</b>, Galileosky <b>5034</b>. Для моточасов из CAN включите режим FMS/J1939.
           </div>
@@ -125,11 +127,11 @@ function SourcesBlock({ id, sources, canManage, onChange }: { id: string; source
       )}
       {pair && (
         <Modal title="Сопряжение телефона" onClose={() => setPair(null)}>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             На телефоне в кабине откройте приложение ITles → «Телефон в кабине» и введите код. Код действует 24 часа.
           </p>
-          <div className="my-5 text-center font-mono text-5xl font-bold tracking-[0.3em] text-brand-700">{pair.code}</div>
-          <p className="text-center text-xs text-slate-500">
+          <div className="my-5 text-center font-mono text-5xl font-bold tracking-[0.3em] text-primary">{pair.code}</div>
+          <p className="text-center text-xs text-muted-foreground">
             или откройте на телефоне: {(apiBase() || location.origin) + '/app/#/cab?code=' + pair.code}
           </p>
         </Modal>
@@ -155,22 +157,22 @@ function ServiceBlock({ id, items, canManage, onChange }: { id: string; items: a
   return (
     <div className="space-y-2">
       {items.map((s) => (
-        <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm">
+        <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2 text-sm">
           <div>
             <div className="font-semibold">
-              {s.item} {s.product ? <span className="font-normal text-slate-500">· {s.product}</span> : null}
+              {s.item} {s.product ? <span className="font-normal text-muted-foreground">· {s.product}</span> : null}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-muted-foreground">
               каждые {fmt(s.interval_h, 0)} ч · следующая при {fmt(s.due_at_h, 0)} ч{s.volume_l ? ` · ${fmt(s.volume_l, 0)} л` : ''}
             </div>
           </div>
           <div className="text-right">
-            <span className={`badge ${s.status === 'overdue' ? 'bg-rose-50 text-rose-700' : s.status === 'soon' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+            <span className={`badge ${s.status === 'overdue' ? 'bg-danger/10 text-danger' : s.status === 'soon' ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
               {s.status === 'overdue' ? `просрочено на ${fmt(-s.remaining_h, 0)} ч` : Number.isFinite(s.remaining_h) ? `через ${fmt(s.remaining_h, 0)} ч` : 'нет моточасов'}
             </span>
-            {s.due_date && <div className="text-[11px] text-slate-400">≈ {new Date(s.due_date).toLocaleDateString('ru-RU')}</div>}
+            {s.due_date && <div className="text-[11px] text-muted-foreground">≈ {new Date(s.due_date).toLocaleDateString('ru-RU')}</div>}
             <button
-              className="ml-2 text-xs text-brand-700 hover:underline"
+              className="ml-2 text-xs text-primary hover:underline"
               onClick={async () => {
                 await api('POST', `/api/service/${s.id}/done`, {});
                 onChange();
@@ -187,7 +189,7 @@ function ServiceBlock({ id, items, canManage, onChange }: { id: string; items: a
         </button>
       )}
       {open && (
-        <form onSubmit={add} className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3">
+        <form onSubmit={add} className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-3">
           <input className="input col-span-2" value={f.item} onChange={(e) => setF({ ...f, item: e.target.value })} placeholder="Узел (моторное масло, гидравлика…)" />
           <input className="input" value={f.interval_h} onChange={(e) => setF({ ...f, interval_h: e.target.value })} placeholder="Интервал, ч" inputMode="numeric" />
           <input className="input" value={f.last_done_h ?? ''} onChange={(e) => setF({ ...f, last_done_h: e.target.value })} placeholder="Последняя замена, ч" inputMode="numeric" />
@@ -213,22 +215,24 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
         : Promise.resolve({ points: [] }),
     [id, tick, range, m?.location_visible],
   );
+  const oilKey = m?.oil?.values?.oil_level_pct ? 'oil_level_pct' : m?.oil ? Object.keys(m.oil.values)[0] : null;
+  const oilSeries = useAsync(() => (oilKey ? api('GET', `/api/machines/${id}/sensors?key=${oilKey}&days=30`) : Promise.resolve({ points: [] })), [id, tick, oilKey]);
   const reload = () => setTick((x) => x + 1);
   const isOwnerAdmin = me.role === 'admin' && m && me.org_id === m.org_id;
   const canManage = me.role === 'admin';
   const line = useMemo(() => (track.data?.points ?? []).map((p: any) => [p[1], p[2]] as [number, number]), [track.data]);
   if (det.error) return <ErrorLine e={det.error} />;
-  if (!m) return <div className="text-slate-500">Загрузка…</div>;
+  if (!m) return <div className="text-muted-foreground">Загрузка…</div>;
   const days = daily.data?.days ?? [];
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <a href="#/" className="text-sm text-slate-500 hover:text-brand-700">
+          <a href="#/" className="text-sm text-muted-foreground hover:text-primary">
             ← Парк
           </a>
           <h1 className="text-2xl font-bold">{m.name}</h1>
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-muted-foreground">
             {CATEGORY_RU[m.category]} · {m.make ?? ''} {m.model ?? ''} {m.year ? `· ${m.year}` : ''} · {m.chassis === 'tracked' ? 'гусеничная' : 'колёсная'}
             {m.rotating_upper ? ', поворотная платформа' : ''} · {m.org_name}
           </div>
@@ -240,10 +244,10 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
         <div className="card p-5">
           <div className="label">Моточасы</div>
           <div className="text-3xl font-bold tabular-nums">
-            {m.engine_hours ? (m.engine_hours.exact ? '' : '≈ ') + fmt(m.engine_hours.value, 1) : '—'} <span className="text-lg text-slate-400">ч</span>
+            {m.engine_hours ? (m.engine_hours.exact ? '' : '≈ ') + fmt(m.engine_hours.value, 1) : '—'} <span className="text-lg text-muted-foreground">ч</span>
           </div>
           {m.engine_hours && (
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-1 text-xs text-muted-foreground">
               {METHOD_RU[m.engine_hours.method]} · {new Date(m.engine_hours.t).toLocaleString('ru-RU')}
               {!m.engine_hours.exact && m.engine_hours.last_exact && (
                 <div>
@@ -256,10 +260,10 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
         <div className="card p-5">
           <div className="label">Пробег</div>
           <div className="text-3xl font-bold tabular-nums">
-            {m.odometer ? fmt(m.odometer.value, 1) : '—'} <span className="text-lg text-slate-400">км</span>
+            {m.odometer ? fmt(m.odometer.value, 1) : '—'} <span className="text-lg text-muted-foreground">км</span>
           </div>
           {m.odometer && (
-            <div className="mt-1 text-xs text-slate-500">
+            <div className="mt-1 text-xs text-muted-foreground">
               {METHOD_RU[m.odometer.method] ?? m.odometer.method}
               {m.odometer.note ? ` · ${m.odometer.note}` : ''}
             </div>
@@ -268,23 +272,74 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
         <div className="card p-5">
           <div className="label">Местоположение</div>
           {!m.location_enabled ? (
-            <div className="text-sm text-slate-600">Выключено главным администратором владельца: координаты этой машины не принимаются.</div>
+            <div className="text-sm text-muted-foreground">Выключено главным администратором владельца: координаты этой машины не принимаются.</div>
           ) : !m.location_visible ? (
-            <div className="text-sm text-slate-600">Владелец не делится местоположением.</div>
+            <div className="text-sm text-muted-foreground">Владелец не делится местоположением.</div>
           ) : m.position ? (
             <div>
               <div className="text-lg font-semibold tabular-nums">
                 {m.position.lat.toFixed(5)}, {m.position.lon.toFixed(5)}
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-muted-foreground">
                 {m.position.speed_kmh !== null ? `${fmt(m.position.speed_kmh, 0)} км/ч · ` : ''}
                 {new Date(m.position.t).toLocaleString('ru-RU')}
               </div>
             </div>
           ) : (
-            <div className="text-sm text-slate-500">Нет данных</div>
+            <div className="text-sm text-muted-foreground">Нет данных</div>
           )}
         </div>
+      </div>
+
+      <div className="card space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-semibold">Масло</h2>
+          {m.oil?.status && <span className={`badge ${STATUS_CLS[m.oil.status]}`}>{STATUS_RU[m.oil.status]}</span>}
+        </div>
+        {m.oil ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {Object.entries(m.oil.values as Record<string, any>).map(([k, v]) => (
+                <div key={k} className="rounded-lg border border-border p-3" title={SENSORS[k]?.source}>
+                  <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{SENSORS[k]?.label ?? k}</div>
+                  <div className={`mt-1 text-xl font-semibold tabular-nums ${v.status === 'crit' ? 'text-danger' : v.status === 'warn' ? 'text-warning' : ''}`}>{fmtSensor(k, v.value)}</div>
+                  <div className="text-[11px] text-muted-foreground">{new Date(v.t).toLocaleString('ru-RU')}</div>
+                </div>
+              ))}
+            </div>
+            {oilKey && (
+              <div>
+                <div className="label">{SENSORS[oilKey]?.label}, 30 дней</div>
+                <Line points={oilSeries.data?.points ?? []} unit={SENSORS[oilKey]?.unit} />
+              </div>
+            )}
+            {det.data.oil_level && (
+              <div className="grid gap-3 text-sm sm:grid-cols-3">
+                <div className="rounded-lg bg-muted p-3">
+                  <div className="text-muted-foreground">Расход масла</div>
+                  <div className="text-lg font-semibold tabular-nums">
+                    {det.data.oil_level.consumption_pct_per_100h === null ? '—' : `${fmt(det.data.oil_level.consumption_pct_per_100h, 1)} % / 100 моточасов`}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {det.data.oil_level.hours ? `по ${fmt(det.data.oil_level.hours, 0)} моточасам` : 'нужно ≥ 20 моточасов и точные моточасы'}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted p-3 sm:col-span-2">
+                  <div className="text-muted-foreground">Доливы за 30 дней: {det.data.oil_level.topups.length}</div>
+                  <div className="mt-1 space-y-0.5 text-xs">
+                    {det.data.oil_level.topups.slice(-4).map((t: any) => (
+                      <div key={t.t} className="tabular-nums">
+                        {new Date(t.t).toLocaleString('ru-RU')}: {fmt(t.from, 0)} → {fmt(t.to, 0)} %
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <OilHowTo />
+        )}
       </div>
 
       {m.location_visible && (
@@ -292,11 +347,11 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold">Трек:</span>
             {[1, 7, 30].map((d) => (
-              <button key={d} onClick={() => setRange(d)} className={`rounded-lg px-2 py-1 ${range === d ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100'}`}>
+              <button key={d} onClick={() => setRange(d)} className={`rounded-lg px-2 py-1 ${range === d ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'}`}>
                 {d === 1 ? 'сутки' : `${d} дн`}
               </button>
             ))}
-            <span className="text-xs text-slate-400">{track.data?.total ? `точек: ${track.data.total}` : ''}</span>
+            <span className="text-xs text-muted-foreground">{track.data?.total ? `точек: ${track.data.total}` : ''}</span>
           </div>
           <MapView track={line} markers={m.position ? [{ id: m.id, lat: m.position.lat, lon: m.position.lon, label: m.name, color: '#10b981' }] : []} height={380} />
         </div>
@@ -316,7 +371,7 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
       <div className="grid gap-4 md:grid-cols-2">
         <div className="card space-y-3 p-5">
           <h2 className="font-bold">Показание счётчика</h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Показание с панели — эталон: по нему автоматически калибруются счётчики трекера, платформы и оценка телефона.
           </p>
           <ReadingForm id={id} onDone={reload} />
@@ -329,14 +384,14 @@ export function MachinePage({ id, me }: { id: string; me: Me }) {
 
       <div className="card space-y-3 p-5">
         <h2 className="font-bold">Обслуживание по моточасам</h2>
-        {det.data.avg_daily_hours ? <p className="text-xs text-slate-500">Средняя наработка: {fmt(det.data.avg_daily_hours, 1)} ч/сутки</p> : null}
+        {det.data.avg_daily_hours ? <p className="text-xs text-muted-foreground">Средняя наработка: {fmt(det.data.avg_daily_hours, 1)} ч/сутки</p> : null}
         <ServiceBlock id={id} items={det.data.service} canManage={canManage} onChange={reload} />
       </div>
 
       {isOwnerAdmin && (
-        <div className="card space-y-3 border-amber-200 p-5">
+        <div className="card space-y-3 border-warning/40 p-5">
           <h2 className="font-bold">Местоположение этой машины</h2>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Решение принимает только главный администратор владельца. Если выключить, сервер перестаёт принимать координаты этой машины: они отбрасываются при
             получении и нигде не сохраняются. Моточасы и пробег по счётчикам продолжают поступать.
           </p>

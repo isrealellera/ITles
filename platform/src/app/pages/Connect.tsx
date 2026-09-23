@@ -76,17 +76,17 @@ export function Connect({ me }: { me: Me }) {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Подключения</h1>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           Если у машин уже есть трекеры в мониторинговой платформе, подключите платформу — все машины появятся в парке автоматически, без нового оборудования.
         </p>
       </div>
-      <div className="card divide-y divide-slate-100">
+      <div className="card divide-y divide-border">
         {(list.data?.connectors ?? []).map((c: any) => (
           <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
             <div>
-              <b>{c.label}</b> <span className="text-slate-500">· {c.org_name} · {c.units} машин</span>
-              <div className="text-xs text-slate-500">
-                {c.status === 'error' ? <span className="text-rose-600">{c.last_error}</span> : `синхронизация ${ago(c.last_sync_at)}`}
+              <b>{c.label}</b> <span className="text-muted-foreground">· {c.org_name} · {c.units} машин</span>
+              <div className="text-xs text-muted-foreground">
+                {c.status === 'error' ? <span className="text-danger">{c.last_error}</span> : `синхронизация ${ago(c.last_sync_at)}`}
               </div>
             </div>
             <button
@@ -100,18 +100,18 @@ export function Connect({ me }: { me: Me }) {
             </button>
           </div>
         ))}
-        {list.data?.connectors?.length === 0 && <div className="p-4 text-sm text-slate-500">Подключений пока нет.</div>}
+        {list.data?.connectors?.length === 0 && <div className="p-4 text-sm text-muted-foreground">Подключений пока нет.</div>}
       </div>
       {me.role === 'admin' && (
         <form onSubmit={submit} className="card space-y-4 p-5">
           <div className="flex flex-wrap gap-2">
             {KINDS.map((x) => (
-              <button type="button" key={x.kind} onClick={() => setKind(x.kind)} className={`rounded-xl px-3 py-2 text-sm font-medium ${kind === x.kind ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+              <button type="button" key={x.kind} onClick={() => setKind(x.kind)} className={`rounded-xl px-3 py-2 text-sm font-medium ${kind === x.kind ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
                 {x.title}
               </button>
             ))}
           </div>
-          <p className="text-sm text-slate-600">{k.hint}</p>
+          <p className="text-sm text-muted-foreground">{k.hint}</p>
           {kind === 'wialon' && (
             <button type="button" className="btn-ghost" onClick={wialonLogin}>
               Войти в Wialon и получить токен автоматически
@@ -134,7 +134,7 @@ export function Connect({ me }: { me: Me }) {
             </div>
           ))}
           <ErrorLine e={err} />
-          {ok && <div className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{ok}</div>}
+          {ok && <div className="rounded-xl bg-success/10 px-3 py-2 text-sm text-success">{ok}</div>}
           <button className="btn-primary" disabled={busy}>
             {busy ? 'Проверяем доступ…' : 'Подключить'}
           </button>

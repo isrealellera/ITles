@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 
 from ..crc import crc16_modbus
-from ..records import Mapping, clean
+from ..records import Mapping, apply_sensors, clean
 
 
 def _lengths() -> dict[int, int]:
@@ -89,6 +89,7 @@ def record_to_ingest(tags: dict[int, bytes], mapping: Mapping) -> dict | None:
         rec.update(odometer_km=struct.unpack("<I", tags[0xC2])[0] * 5 / 1000, odometer_method="ecu")
     elif 0xD4 in tags and struct.unpack("<I", tags[0xD4])[0]:
         rec.update(odometer_km=struct.unpack("<I", tags[0xD4])[0] / 1000, odometer_method="tracker")
+    apply_sensors(mapping, rec, tags=tags)
     return clean(rec)
 
 

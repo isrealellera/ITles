@@ -5,7 +5,7 @@ from __future__ import annotations
 import calendar
 
 from ..crc import crc16_arc
-from ..records import Mapping, clean, params_to_counters
+from ..records import Mapping, apply_sensors, clean, params_to_counters
 
 
 def _num(s: str) -> float | None:
@@ -62,7 +62,9 @@ def parse_data_body(fields: list[str], mapping: Mapping, short: bool) -> dict | 
         if not short:
             rec["hdop"] = _num(fields[10])
     if not short:
-        params_to_counters(parse_params(fields[15]), mapping, rec)
+        params = parse_params(fields[15])
+        params_to_counters(params, mapping, rec)
+        apply_sensors(mapping, rec, params=params)
     return clean(rec)
 
 

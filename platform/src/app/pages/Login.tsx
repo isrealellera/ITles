@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, API_KEY, TOKEN_KEY } from '../api';
 import { ErrorLine } from '../ui';
+import { ThemeToggle } from '../main-toggle';
 
 export function Login({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<'login' | 'redeem' | 'setup'>('login');
@@ -33,25 +34,26 @@ export function Login({ onDone }: { onDone: () => void }) {
     }
   };
   return (
-    <div className="flex min-h-full items-center justify-center bg-gradient-to-br from-brand-900 to-brand-700 p-4">
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-7">
+    <div className="relative flex min-h-full items-center justify-center bg-background p-4">
+      <div className="absolute right-4 top-4"><ThemeToggle /></div>
+      <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-7 shadow-2xl">
         <div className="flex items-center gap-3">
           <img src="../favicon.svg" className="h-10 w-10" alt="" />
           <div>
             <div className="text-lg font-bold">ITles</div>
-            <div className="text-xs text-slate-500">моточасы · пробег · местоположение</div>
+            <div className="text-xs text-muted-foreground">моточасы · пробег · местоположение</div>
           </div>
         </div>
-        <div className="flex gap-1 rounded-xl bg-slate-100 p-1 text-sm">
+        <div className="flex gap-1 rounded-xl bg-muted p-1 text-sm">
           {(needsSetup ? [['setup', 'Первый запуск']] : [['login', 'Вход'], ['redeem', 'У меня есть код']]).map(([m, t]) => (
-            <button type="button" key={m} onClick={() => setMode(m as any)} className={`flex-1 rounded-lg py-1.5 font-medium ${mode === m ? 'bg-white shadow' : 'text-slate-500'}`}>
+            <button type="button" key={m} onClick={() => setMode(m as any)} className={`flex-1 rounded-md py-1.5 font-medium ${mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>
               {t}
             </button>
           ))}
         </div>
         {mode === 'setup' && (
           <>
-            <p className="text-xs text-slate-500">Создание учётной записи FUCHS — главной организации системы. Ключ установки задан на сервере (SETUP_KEY).</p>
+            <p className="text-xs text-muted-foreground">Создание учётной записи FUCHS — главной организации системы. Ключ установки задан на сервере (SETUP_KEY).</p>
             <div>
               <label className="label">Ключ установки</label>
               <input className="input" value={f.setup_key ?? ''} onChange={set('setup_key')} required />
@@ -80,13 +82,13 @@ export function Login({ onDone }: { onDone: () => void }) {
         <button className="btn-primary w-full" disabled={busy}>
           {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'redeem' ? 'Создать учётную запись' : 'Создать'}
         </button>
-        <div className="flex justify-between text-xs text-slate-500">
-          <a className="hover:text-brand-700" href="#/cab">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <a className="hover:text-primary" href="#/cab">
             Режим «Телефон в кабине» →
           </a>
           <button
             type="button"
-            className="hover:text-brand-700"
+            className="hover:text-primary"
             onClick={() => {
               const v = prompt('Адрес сервера (пусто — по умолчанию)', localStorage.getItem(API_KEY) ?? '');
               if (v === null) return;

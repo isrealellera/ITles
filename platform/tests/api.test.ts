@@ -202,6 +202,43 @@ describe('platform API end-to-end (PGlite)', () => {
     expect(det.data.machine.engine_hours.last_exact.method).toBe('ecu');
   });
 
+  it('stores oil sensors, rejects unknown keys and analyses level (top-up, consumption per 100 h)', async () => {
+    const now = Date.now();
+    const recs: any[] = [];
+    // 40 h of work, 1 sample/h: level falls 0.3 pp/h, topped up +20 pp at hour 20; ECU engine hours advance 1 h/h
+    for (let h = 0; h <= 40; h++) {
+      const level = 80 - 0.3 * h + (h >= 20 ? 20 : 0);
+      recs.push({
+        ext_id: '868204005185938',
+        t: new Date(now - (41 - h) * 3600e3).toISOString(),
+        engine_hours: 5000 + h,
+        engine_hours_method: 'ecu',
+        sensors: { oil_level_pct: level, oil_temp_c: 88, oil_water_aw: h === 40 ? 0.62 : 0.2 },
+      });
+    }
+    recs.push({ ext_id: '868204005185938', t: new Date(now - 30e3).toISOString(), sensors: { oil_magic: 1, oil_temp_c: 999 } });
+    const r = await call('POST', '/api/ingest', { records: recs }, process.env.GATEWAY_TOKEN);
+    const res = r.data.results[0];
+    expect(res.sensors).toBe(41 * 3);
+    expect(res.rejected).toEqual([{ index: 41, reason: 'bad_sensor' }]);
+    const det = await call('GET', `/api/machines/${machineId}`, undefined, owner);
+    const oil = det.data.machine.oil;
+    expect(oil.values.oil_level_pct.value).toBeCloseTo(88, 5);
+    expect(oil.values.oil_water_aw.status).toBe('warn');
+    expect(oil.status).toBe('warn');
+    const lv = det.data.oil_level;
+    expect(lv.topups).toHaveLength(1);
+    expect(lv.topups[0].to - lv.topups[0].from).toBeGreaterThan(15);
+    expect(lv.topups[0].to - lv.topups[0].from).toBeCloseTo(20, 6);
+    expect(lv.hours).toBeCloseTo(39, 6); // two segments: 19 h + 20 h of fitted span
+    expect(lv.consumption_pct_per_100h).toBeCloseTo(30, 6);
+    const ov = await call('GET', '/api/oil/overview', undefined, dist);
+    expect(ov.data.machines).toHaveLength(1);
+    expect(ov.data.machines[0].topups_30d).toBe(1);
+    const series = await call('GET', `/api/machines/${machineId}/sensors?key=oil_level_pct&days=7`, undefined, owner);
+    expect(series.data.total).toBe(41);
+  });
+
   it('forecasts oil service from engine hours for owner, distributor and FUCHS', async () => {
     const s = await call(
       'POST',

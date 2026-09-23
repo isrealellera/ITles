@@ -56,6 +56,7 @@ class GalileoRecord:
     fuel_total_raw: int | None = None  # SPN 250 raw, 0.5 L/bit
     can_b0_raw: int | None = None  # tag 0xC2 (FMS): vehicle distance, value*5 = m
     engine_hours_x100: int | None = None  # tag 0xDB (FMS): total engine hours, value/100 = h
+    analog_mv: dict[int, int] | None = None  # tags 0x50..0x57: analog input voltage, mV
 
 
 def frame(payload: bytes, archive: bool = False) -> bytes:
@@ -95,6 +96,8 @@ def record_tags(r: GalileoRecord) -> bytes:
     if r.engine_hours_x100 is not None:
         out += bytes([0xDB]) + struct.pack("<I", r.engine_hours_x100)
     out += bytes([0xD4]) + struct.pack("<I", r.gps_odometer_m)
+    for tag, mv in sorted((r.analog_mv or {}).items()):
+        out += bytes([tag]) + struct.pack("<H", mv)
     return bytes(out)
 
 

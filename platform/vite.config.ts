@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',
+  worker: { format: 'es' },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

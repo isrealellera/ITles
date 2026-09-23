@@ -15,7 +15,7 @@ log = logging.getLogger("itles.forwarder")
 # rejections that will never succeed on retry
 PERMANENT = {
     "bad_time", "time_too_old", "time_in_future", "bad_coordinates", "bad_engine_hours", "bad_odometer",
-    "no_data", "not_an_object",
+    "no_data", "not_an_object", "bad_sensor",
 }
 
 

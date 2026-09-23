@@ -5,7 +5,7 @@ const SHOTS = process.env.SHOTS_DIR ?? '../docs/img/ui';
 test('landing → setup → hierarchy → machine → phone in the cab → data on the machine page', async ({ page, browser }) => {
   await page.setViewportSize({ width: 1360, height: 900 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Моточасы, пробег и местоположение/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Масло, моточасы и местоположение/ })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/landing.png`, fullPage: true });
 
   await page.goto('/app/');

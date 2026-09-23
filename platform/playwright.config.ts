@@ -5,7 +5,12 @@ const PORT = 8799;
 export default defineConfig({
   testDir: 'e2e',
   timeout: 120_000,
-  use: { baseURL: `http://127.0.0.1:${PORT}`, trace: 'retain-on-failure' },
+  use: {
+    baseURL: `http://127.0.0.1:${PORT}`,
+    trace: 'retain-on-failure',
+    // software WebGL2 (SwiftShader) so MapLibre renders in headless CI
+    launchOptions: { args: ['--disable-gpu-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'], ignoreDefaultArgs: ['--disable-gpu'] },
+  },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: `rm -rf .data/e2e && npx tsx dev/server.ts`,

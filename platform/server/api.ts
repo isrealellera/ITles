@@ -24,7 +24,8 @@ import {
 } from './access.js';
 import { bad, forbidden, HttpError, json, notFound, readJson, Router } from './http.js';
 import { ingestForSource, loadMachine, recomputeDirtyDays, refitCalibrations, type IngestRecord } from './ingest.js';
-import { summarize } from './state.js';
+import { oilLevelAnalysis, summarize } from './state.js';
+import { SENSORS } from './domain/sensors.js';
 import { forecast } from './domain/service.js';
 import { encryptSecret } from './secrets.js';
 import { fetchUnits, syncConnector } from './connectors/sync.js';
@@ -408,6 +409,7 @@ router.on('GET', '/api/machines/:id', async (c, { id }) => {
   );
   return json({
     machine: summary,
+    oil_level: await oilLevelAnalysis(c.db, id),
     service: forecast(items.rows, summary?.engine_hours?.value ?? null, avg),
     avg_daily_hours: avg,
     calibrations: cals.rows,
@@ -561,6 +563,39 @@ router.on('GET', '/api/machines/:id/counters', async (c, { id }) => {
     [id, metric],
   );
   return json({ metric, series: Object.values(series), readings: readings.rows });
+});
+
+router.on('GET', '/api/machines/:id/sensors', async (c, { id }) => {
+  const u = user(c);
+  await loadVisibleMachine(c.db, u, id);
+  const key = c.url.searchParams.get('key') ?? 'oil_level_pct';
+  if (!SENSORS[key]) throw bad('bad_key', 'Неизвестный показатель');
+  const days = Math.min(366, Math.max(1, Number(c.url.searchParams.get('days') ?? 30)));
+  const r = await c.db.query<any>(
+    `select (extract(epoch from t) * 1000)::float8 as t, value from sensor_readings
+      where machine_id = $1 and key = $2 and t > now() - ($3::int || ' days')::interval order by t`,
+    [id, key, days],
+  );
+  const step = Math.max(1, Math.ceil(r.rows.length / 1500));
+  const points = r.rows.filter((_, i) => i % step === 0 || i === r.rows.length - 1).map((x) => [Number(x.t), Number(x.value)]);
+  return json({ key, points, total: r.rows.length });
+});
+
+router.on('GET', '/api/oil/overview', async (c) => {
+  const u = user(c);
+  const ids = await visibleMachineIds(c, u, c.url.searchParams.get('org_id'));
+  const machines = (await summarize(c.db, ids, u.org_id)).filter((m) => m.oil);
+  const rows = [];
+  for (const m of machines) {
+    const lv = m.oil!.values.oil_level_pct ? await oilLevelAnalysis(c.db, m.id) : null;
+    rows.push({
+      id: m.id, name: m.name, org_name: m.org_name, category: m.category, engine_hours: m.engine_hours?.value ?? null,
+      oil: m.oil, topups_30d: lv?.topups.length ?? null, consumption_pct_per_100h: lv?.consumption_pct_per_100h ?? null,
+    });
+  }
+  const rank = { crit: 0, warn: 1, ok: 2 } as Record<string, number>;
+  rows.sort((a, b) => (rank[a.oil!.status ?? 'ok'] ?? 3) - (rank[b.oil!.status ?? 'ok'] ?? 3) || a.name.localeCompare(b.name));
+  return json({ machines: rows, sensors: SENSORS });
 });
 
 router.on('POST', '/api/machines/:id/readings', async (c, { id }) => {

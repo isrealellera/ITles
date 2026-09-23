@@ -12,14 +12,14 @@ function Users({ org, me }: { org: any; me: Me }) {
   return (
     <div className="space-y-2">
       {(users.data?.users ?? []).map((u: any) => (
-        <div key={u.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 text-sm">
+        <div key={u.id} className="flex items-center justify-between rounded-xl border border-border px-3 py-2 text-sm">
           <div>
-            <b>{u.login}</b> <span className="text-slate-500">· {u.role === 'admin' ? 'администратор' : 'сотрудник'}</span>
-            {u.disabled && <span className="badge ml-2 bg-slate-100 text-slate-500">отключён</span>}
+            <b>{u.login}</b> <span className="text-muted-foreground">· {u.role === 'admin' ? 'администратор' : 'сотрудник'}</span>
+            {u.disabled && <span className="badge ml-2 bg-muted text-muted-foreground">отключён</span>}
           </div>
           {u.id !== me.id && (
             <button
-              className="text-xs text-slate-500 hover:text-rose-600"
+              className="text-xs text-muted-foreground hover:text-danger"
               onClick={async () => {
                 await api('PATCH', `/api/users/${u.id}`, { disabled: !u.disabled });
                 users.reload();
@@ -40,11 +40,11 @@ function Users({ org, me }: { org: any; me: Me }) {
       </div>
       {code && (
         <Modal title="Код приглашения" onClose={() => setCode(null)}>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             Передайте код человеку: вход → «У меня есть код». Действует {code.expires_in_days} дней, одноразовый. Роль:{' '}
             {code.role === 'admin' ? 'администратор' : 'сотрудник'}.
           </p>
-          <div className="my-5 text-center font-mono text-4xl font-bold tracking-widest text-brand-700">{code.code}</div>
+          <div className="my-5 text-center font-mono text-4xl font-bold tracking-widest text-primary">{code.code}</div>
         </Modal>
       )}
     </div>
@@ -102,18 +102,18 @@ export function Orgs({ me }: { me: Me }) {
           <div key={o.id} className="card p-5">
             <div className="flex cursor-pointer flex-wrap items-center justify-between gap-2" onClick={() => setOpen(open === o.id ? null : o.id)}>
               <div>
-                <span className="badge mr-2 bg-brand-50 text-brand-700">{KIND_RU[o.kind]}</span>
+                <span className="badge mr-2 bg-primary/10 text-primary">{KIND_RU[o.kind]}</span>
                 <b>{o.name}</b>
-                <span className="ml-2 text-sm text-slate-500">
+                <span className="ml-2 text-sm text-muted-foreground">
                   {o.machines} машин · {o.users} пользователей
                 </span>
               </div>
-              <span className="text-slate-400">{open === o.id ? '▲' : '▼'}</span>
+              <span className="text-muted-foreground">{open === o.id ? '▲' : '▼'}</span>
             </div>
             {open === o.id && (
               <div className="mt-4 space-y-4">
                 {o.kind === 'customer' && me.org_id === o.id && me.role === 'admin' && (
-                  <label className="flex items-start gap-3 rounded-xl bg-amber-50 p-3 text-sm">
+                  <label className="flex items-start gap-3 rounded-xl bg-warning/10 p-3 text-sm">
                     <input
                       type="checkbox"
                       className="mt-1"

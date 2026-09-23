@@ -5,13 +5,13 @@ from __future__ import annotations
 import struct
 
 from ..crc import crc8_egts, crc16_ccitt
-from ..records import Mapping, clean
+from ..records import Mapping, apply_sensors, clean
 
 EPOCH_2010 = 1262304000
 PT_RESPONSE, PT_APPDATA = 0, 1
 SERVICE_AUTH, SERVICE_TELEDATA = 1, 2
 SR_RECORD_RESPONSE, SR_TERM_IDENTITY, SR_RESULT_CODE = 0, 1, 9
-SR_POS_DATA, SR_EXT_POS_DATA, SR_COUNTERS_DATA, SR_ABS_CNTR_DATA = 16, 17, 19, 25
+SR_POS_DATA, SR_EXT_POS_DATA, SR_COUNTERS_DATA, SR_ABS_AN_SENS_DATA, SR_ABS_CNTR_DATA = 16, 17, 19, 24, 25
 
 
 class ProtocolError(Exception):
@@ -92,6 +92,7 @@ class EgtsSession:
                 self.ext_id = str(oid)
             rec: dict = {}
             counters: dict[int, int] = {}
+            analog: dict[int, int] = {}
             while pos + 3 <= end:
                 srt, srl = struct.unpack_from("<BH", sfrd, pos)
                 pos += 3
@@ -128,6 +129,8 @@ class EgtsSession:
                         p += 2  # PDOP
                     if fl >> 3 & 1 and p < len(d):
                         rec["sats"] = d[p]
+                elif srt == SR_ABS_AN_SENS_DATA and len(d) >= 4:
+                    analog[d[0]] = int.from_bytes(d[1:4], "little")
                 elif srt == SR_ABS_CNTR_DATA and len(d) >= 4:
                     counters[d[0]] = int.from_bytes(d[1:4], "little")
                 elif srt == SR_COUNTERS_DATA and d:
@@ -140,6 +143,7 @@ class EgtsSession:
             if n is not None and n in counters and counters[n]:
                 rec["engine_hours"] = counters[n] * self.mapping.egts_hours_scale
                 rec["engine_hours_method"] = "tracker"
+            apply_sensors(self.mapping, rec, analog=analog)
             responses += self._record(sst, struct.pack("<BHHB", SR_RECORD_RESPONSE, 3, rn, 0))
             if "t" in rec and self.ext_id:
                 records.append(clean(rec))

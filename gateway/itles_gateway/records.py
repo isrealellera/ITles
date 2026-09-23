@@ -26,6 +26,12 @@ class Mapping:
         default_factory=lambda: {"can_mileage": "ecu", "mileage": "tracker", "odometer": "tracker"}
     )
     param_mileage_scale: float = 1.0
+    # oil sensors: key -> source + transform, e.g.
+    #   {"oil_level_pct": {"param": "oil_lvl"}}                  Wialon IPS / Retranslator parameter
+    #   {"oil_level_pct": {"tag": 0x50, "table": [[0, 0], [9800, 100]]}}  Galileosky tag (mV) + calibration
+    #   {"oil_level_low": {"tag": 0x46, "bit": 2}}              Galileosky discrete input bit
+    #   {"oil_level_pct": {"egts_an": 1, "scale": 0.1}}         EGTS ABS_AN_SENS_DATA input number
+    sensors: dict = field(default_factory=dict)
 
     @staticmethod
     def from_dict(d: dict) -> "Mapping":
@@ -53,3 +59,39 @@ def params_to_counters(params: dict, mapping: Mapping, rec: dict) -> None:
             rec["odometer_km"] = v * mapping.param_mileage_scale
             rec["odometer_method"] = method
             break
+
+
+def _interp(table: list, x: float) -> float:
+    pts = sorted((float(a), float(b)) for a, b in table)
+    if x <= pts[0][0]:
+        return pts[0][1]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0) if x1 != x0 else y1
+    return pts[-1][1]
+
+
+def apply_sensors(mapping: Mapping, rec: dict, *, params: dict | None = None, tags: dict | None = None,
+                  analog: dict | None = None) -> None:
+    out: dict = {}
+    for key, spec in (mapping.sensors or {}).items():
+        raw = None
+        if params is not None and "param" in spec:
+            raw = params.get(spec["param"])
+        elif tags is not None and "tag" in spec and spec["tag"] in tags:
+            b = tags[spec["tag"]]
+            off = spec.get("byte_offset", 0)
+            raw = int.from_bytes(b[off: off + spec.get("bytes", len(b) - off)], "little", signed=spec.get("signed", False))
+        elif analog is not None and "egts_an" in spec:
+            raw = analog.get(spec["egts_an"])
+        if not isinstance(raw, (int, float)) or isinstance(raw, bool):
+            continue
+        if "bit" in spec:
+            val = float((int(raw) >> spec["bit"]) & 1)
+        elif "table" in spec:
+            val = _interp(spec["table"], raw)
+        else:
+            val = raw * spec.get("scale", 1.0) + spec.get("offset", 0.0)
+        out[key] = round(val, 4)
+    if out:
+        rec["sensors"] = out

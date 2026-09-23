@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import struct
 
-from ..records import Mapping, clean, params_to_counters
+from ..records import Mapping, apply_sensors, clean, params_to_counters
 
 
 class RetranslatorSession:
@@ -65,4 +65,5 @@ class RetranslatorSession:
         if isinstance(params.get("hdop"), (int, float)):
             rec["hdop"] = params["hdop"]
         params_to_counters(params, self.mapping, rec)
+        apply_sensors(self.mapping, rec, params=params)
         return clean(rec)

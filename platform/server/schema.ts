@@ -1,5 +1,5 @@
 // Source of truth for the database schema. Idempotent: safe to run on every cold start.
-export const SCHEMA_VERSION = '2';
+export const SCHEMA_VERSION = '3';
 
 export const SCHEMA_SQL = `
 -- ITles platform schema (PostgreSQL 15+; also runs on PGlite for tests).
@@ -161,6 +161,18 @@ create table if not exists calibrations (
   updated_at timestamptz not null default now(),
   primary key (source_id, metric)
 );
+
+-- Oil sensor values in engineering units (registry: server/domain/sensors.ts).
+create table if not exists sensor_readings (
+  source_id text not null references sources(id),
+  key text not null,
+  t timestamptz not null,
+  machine_id text not null references machines(id),
+  value double precision not null,
+  received_at timestamptz not null default now(),
+  primary key (source_id, key, t)
+);
+create index if not exists sensor_readings_machine on sensor_readings(machine_id, key, t);
 
 -- Engine run intervals reported by sources that do not have an hour counter (phone detector,
 -- ignition/engine events). Used for daily work time.

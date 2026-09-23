@@ -2,6 +2,7 @@ import type { Db } from './db.js';
 import { validLatLon } from './domain/geo.js';
 import { robustDistance, type Fix, type MachineProfile } from './domain/odometry.js';
 import { fitCalibration, type CounterMethod, type Point } from './domain/counters.js';
+import { SENSORS } from './domain/sensors.js';
 
 export type RawMethod = 'ecu' | 'tracker' | 'platform' | 'device';
 const METHODS: ReadonlySet<string> = new Set(['ecu', 'tracker', 'platform', 'device']);
@@ -20,6 +21,7 @@ export interface IngestRecord {
   engine_hours_method?: RawMethod;
   odometer_km?: number | null;
   odometer_method?: RawMethod;
+  sensors?: Record<string, number> | null;
 }
 
 export interface SourceRow {
@@ -32,6 +34,7 @@ export interface SourceRow {
 export interface IngestResult {
   positions: number;
   counters: number;
+  sensors: number;
   duplicates: number;
   location_dropped: number;
   rejected: Array<{ index: number; reason: string }>;
@@ -85,7 +88,7 @@ export async function ingestForSource(
   records: IngestRecord[],
   now = Date.now(),
 ): Promise<IngestResult> {
-  const res: IngestResult = { positions: 0, counters: 0, duplicates: 0, location_dropped: 0, rejected: [] };
+  const res: IngestResult = { positions: 0, counters: 0, sensors: 0, duplicates: 0, location_dropped: 0, rejected: [] };
   if (!source.machine_id) {
     records.forEach((_, i) => res.rejected.push({ index: i, reason: 'source_not_assigned' }));
     return res;
@@ -95,6 +98,7 @@ export async function ingestForSource(
 
   const pos = new Map<number, unknown[]>();
   const cnt = new Map<string, unknown[]>();
+  const sen = new Map<string, unknown[]>();
   let attemptedPos = 0;
   let attemptedCnt = 0;
 
@@ -129,7 +133,7 @@ export async function ingestForSource(
           inRange(num(r.acc_m), 0, 100000),
         ]);
         useful = true;
-      } else if (!(r.engine_hours ?? r.odometer_km)) {
+      } else if (!(r.engine_hours ?? r.odometer_km) && !r.sensors) {
         return res.rejected.push({ index: i, reason: 'bad_coordinates' });
       }
     }
@@ -150,7 +154,21 @@ export async function ingestForSource(
       cnt.set(`odometer_km|${t}`, [source.id, 'odometer_km', new Date(t).toISOString(), machine.id, od, m]);
       useful = true;
     }
-    if (!useful) res.rejected.push({ index: i, reason: 'no_data' });
+    let badSensor = false;
+    if (r.sensors && typeof r.sensors === 'object') {
+      for (const [key, v] of Object.entries(r.sensors)) {
+        const def = SENSORS[key];
+        if (!def || typeof v !== 'number' || !Number.isFinite(v) || v < def.min || v > def.max) {
+          badSensor = true;
+          continue;
+        }
+        sen.set(`${key}|${t}`, [source.id, key, new Date(t).toISOString(), machine.id, v]);
+        useful = true;
+      }
+    }
+    // other values of the record are still stored; one reason per record, never retried
+    if (badSensor) res.rejected.push({ index: i, reason: 'bad_sensor' });
+    else if (!useful) res.rejected.push({ index: i, reason: 'no_data' });
   });
 
   const posRows = [...pos.values()];
@@ -167,7 +185,14 @@ export async function ingestForSource(
     cntRows,
     'on conflict (source_id, metric, t) do nothing',
   );
-  res.duplicates = attemptedPos + attemptedCnt - res.positions - res.counters;
+  const senRows = [...sen.values()];
+  res.sensors = await insertMany(
+    db,
+    'sensor_readings (source_id, key, t, machine_id, value)',
+    senRows,
+    'on conflict (source_id, key, t) do nothing',
+  );
+  res.duplicates = attemptedPos + attemptedCnt + senRows.length - res.positions - res.counters - res.sensors;
 
   await db.query(`update sources set last_seen_at = now() where id = $1`, [source.id]);
 

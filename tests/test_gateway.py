@@ -223,3 +223,31 @@ def test_free_port_helper():
     s.bind(("127.0.0.1", 0))
     assert s.getsockname()[1] > 0
     s.close()
+
+
+def test_oil_sensors_wialon_param_galileosky_tag_table_and_bit_egts_analog():
+    # Wialon IPS: CAN oil data as parameters (SPN 98 raw 0.4 %/bit, SPN 175 already in °C)
+    m = sim_wialon.WialonMessage(t=1789466400, lat=61.78, lon=34.34, speed_kmh=0, course=0, alt_m=100, sats=9, hdop=1.0,
+                                 inputs=0, params={"oil_lvl_raw": 180, "oil_t": 91.5, "oil_aw": 0.23})
+    s = WialonIpsSession(Mapping(sensors={"oil_level_pct": {"param": "oil_lvl_raw", "scale": 0.4},
+                                          "oil_temp_c": {"param": "oil_t"}, "oil_water_aw": {"param": "oil_aw"}}))
+    s.feed(sim_wialon.login("356307042441013"))
+    (recs, _), = s.feed(sim_wialon.data(m))
+    assert recs[0]["sensors"] == {"oil_level_pct": 72.0, "oil_temp_c": 91.5, "oil_water_aw": 0.23}
+
+    # Galileosky: level sender on analog input 0x50 (mV) through a calibration table; switch on input bit 2
+    rec = sim_gs.GalileoRecord(index=3, t=1789466500, lat=61.78, lon=34.34, valid=True, sats=10, speed_kmh=0, course=0,
+                               alt_m=100, hdop=0.9, inputs=0b100, power_mv=27000, gps_odometer_m=0, analog_mv={0x50: 4900})
+    g = GalileoskySession(Mapping(sensors={"oil_level_pct": {"tag": 0x50, "table": [[500, 0], [9300, 100]]},
+                                           "oil_level_low": {"tag": 0x46, "bit": 2}}))
+    g.feed(sim_gs.head_packet("356307042441013"))
+    (grecs, _), = g.feed(sim_gs.records_packets([rec], archive=False)[0])
+    assert grecs[0]["sensors"] == {"oil_level_pct": 50.0, "oil_level_low": 1.0}
+
+    # EGTS: ABS_AN_SENS_DATA input 3 (ГОСТ 33472 Б.13: ASN 1 byte + ASV 3 bytes)
+    p = sim_egts.EgtsPoint(t=1789466600, lat=61.78, lon=34.34, valid=True, speed_kmh=0, course=0, odometer_km=0, inputs=0,
+                           alt_m=100, sats=9, hdop=1.0, moving=False, blackbox=False, counters={}, analog={3: 860})
+    e = EgtsSession(Mapping(sensors={"hyd_temp_c": {"egts_an": 3, "scale": 0.1}}))
+    e.ext_id = "preset"
+    out = e.feed(sim_egts.transport(sim_egts.record(5, 2, sim_egts.pos_data(p) + sim_egts.abs_analog(p.analog)), 9))
+    assert out[0][0][0]["sensors"] == {"hyd_temp_c": 86.0}

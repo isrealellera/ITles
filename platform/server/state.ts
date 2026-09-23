@@ -2,6 +2,7 @@ import type { Db } from './db.js';
 import { pickBest, type Candidate, type CounterMethod } from './domain/counters.js';
 import { freshness, type Freshness } from './domain/staleness.js';
 import { robustDistance, type MachineProfile } from './domain/odometry.js';
+import { analyzeLevel, sensorStatus, worst, type LevelAnalysis, type Status } from './domain/sensors.js';
 
 export interface CounterView {
   value: number;
@@ -33,6 +34,13 @@ export interface MachineSummary {
   last_data_t: number | null;
   freshness: Freshness;
   sources: Array<{ id: string; kind: string; label: string | null; last_seen_at: number | null }>;
+  oil: OilLatest | null;
+}
+
+export interface OilLatest {
+  values: Record<string, { value: number; t: number; status: Status | null }>;
+  status: Status | null;
+  t: number;
 }
 
 const ms = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -50,7 +58,7 @@ export async function summarize(db: Db, ids: string[], viewerOrgId: string, now 
   const visibleLoc = new Set(
     machines.rows.filter((m) => m.location_enabled && (m.org_id === viewerOrgId || m.share_location_up)).map((m) => m.id),
   );
-  const [positions, counters, cals, readings, gnss, sources] = await Promise.all([
+  const [positions, counters, cals, readings, gnss, sources, oil] = await Promise.all([
     visibleLoc.size
       ? db.query<any>(
           `select m.id as machine_id, p.lat, p.lon, p.speed_kmh, p.course, (extract(epoch from p.t) * 1000)::float8 as t
@@ -91,6 +99,7 @@ export async function summarize(db: Db, ids: string[], viewerOrgId: string, now 
          from sources where machine_id = any($1::text[]) order by created_at`,
       [ids],
     ),
+    latestSensors(db, ids),
   ]);
 
   const calBy = new Map(cals.rows.map((c) => [`${c.source_id}|${c.metric}`, c]));
@@ -220,6 +229,7 @@ export async function summarize(db: Db, ids: string[], viewerOrgId: string, now 
       sources: sources.rows
         .filter((s) => s.machine_id === m.id)
         .map((s) => ({ id: s.id, kind: s.kind, label: s.label, last_seen_at: ms(s.last_seen_at) })),
+      oil: oil.get(m.id) ?? null,
     });
   }
   return out;
@@ -242,4 +252,44 @@ export async function gnssKmSince(db: Db, machineId: string, t: number, profile:
     accM: p.acc_m,
   }));
   return robustDistance(fixes, profile).km;
+}
+
+export async function latestSensors(db: Db, ids: string[]): Promise<Map<string, OilLatest>> {
+  const r = await db.query<any>(
+    `select distinct on (machine_id, key) machine_id, key, value, (extract(epoch from t) * 1000)::float8 as t
+       from sensor_readings where machine_id = any($1::text[]) order by machine_id, key, t desc`,
+    [ids],
+  );
+  const out = new Map<string, OilLatest>();
+  for (const row of r.rows) {
+    const o = out.get(row.machine_id) ?? { values: {}, status: null, t: 0 };
+    const value = Number(row.value);
+    o.values[row.key] = { value, t: Number(row.t), status: sensorStatus(row.key, value) };
+    o.t = Math.max(o.t, Number(row.t));
+    out.set(row.machine_id, o);
+  }
+  for (const o of out.values()) o.status = worst(Object.values(o.values).map((v) => v.status));
+  return out;
+}
+
+/** Level analysis over `days`, using the engine-hour source with the most exact samples. */
+export async function oilLevelAnalysis(db: Db, machineId: string, days = 30): Promise<LevelAnalysis | null> {
+  const lv = await db.query<any>(
+    `select (extract(epoch from t) * 1000)::float8 as t, value from sensor_readings
+      where machine_id = $1 and key = 'oil_level_pct' and t > now() - ($2::int || ' days')::interval order by t`,
+    [machineId, days],
+  );
+  if (lv.rows.length === 0) return null;
+  const hs = await db.query<any>(
+    `with best as (
+       select source_id from counters where machine_id = $1 and metric = 'engine_hours' and method in ('ecu', 'tracker', 'platform')
+          and t > now() - ($2::int || ' days')::interval group by source_id order by count(*) desc limit 1)
+     select (extract(epoch from t) * 1000)::float8 as t, value from counters
+      where source_id = (select source_id from best) and metric = 'engine_hours' and t > now() - ($2::int || ' days')::interval order by t`,
+    [machineId, days],
+  );
+  return analyzeLevel(
+    lv.rows.map((x) => ({ t: Number(x.t), v: Number(x.value) })),
+    hs.rows.map((x) => ({ t: Number(x.t), v: Number(x.value) })),
+  );
 }
