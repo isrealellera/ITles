@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { call, iso } from './helpers.js';
 
-process.env.DATABASE_URL = 'pglite:memory';
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? 'pglite:memory';
 process.env.SETUP_KEY = 'test-setup-key-0123456789';
 process.env.GATEWAY_TOKEN = 'gw_test_token_0123456789abcdef';
 process.env.CRON_SECRET = 'cron-secret-test';
