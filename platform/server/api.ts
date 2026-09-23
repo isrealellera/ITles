@@ -709,6 +709,33 @@ async function deviceConfig(db: Db, sourceId: string) {
 
 router.on('GET', '/api/devices/me', async (c) => json(await deviceConfig(c.db, device(c).source_id)));
 
+/** Dashboard meter reading taken in the cab (photo + number), sent with the device token. */
+router.on('POST', '/api/devices/reading', async (c) => {
+  const d = device(c);
+  if (!d.machine_id) throw bad('not_assigned', 'Телефон не привязан к машине');
+  const b = await readJson(c.req, 3_000_000);
+  const metric = b.metric === 'odometer_km' ? 'odometer_km' : 'engine_hours';
+  const value = finite(b.value);
+  if (value === null || value < 0 || value > (metric === 'engine_hours' ? 300000 : 10_000_000)) throw bad('bad_value', 'Неверное показание');
+  const t = b.t ? Date.parse(b.t) : Date.now();
+  if (!Number.isFinite(t) || t > Date.now() + 5 * 60e3) throw bad('bad_time', 'Неверное время показания');
+  const prev = await c.db.query<any>(
+    `select value from readings where machine_id = $1 and metric = $2 and t <= to_timestamp($3 / 1000.0) order by t desc limit 1`,
+    [d.machine_id, metric, t],
+  );
+  if (prev.rows[0] && value < Number(prev.rows[0].value) && !b.confirm_decrease)
+    throw new HttpError(409, 'decrease', `Показание меньше предыдущего (${prev.rows[0].value}). Если счётчик заменён, подтвердите.`);
+  const rid = typeof b.id === 'string' && /^[0-9a-f-]{36}$/.test(b.id) ? b.id : randomUUID();
+  const photo = typeof b.photo === 'string' && b.photo.startsWith('data:image/') ? b.photo : null;
+  const r = await c.db.query(
+    `insert into readings (id, machine_id, metric, value, t, photo, source_id) values ($1, $2, $3, $4, to_timestamp($5 / 1000.0), $6, $7)
+     on conflict (id) do nothing`,
+    [rid, d.machine_id, metric, value, t, photo, d.source_id],
+  );
+  if (r.rowCount) await refitCalibrations(c.db, d.machine_id, metric);
+  return json({ id: rid, duplicate: r.rowCount === 0 }, 201);
+});
+
 router.on('POST', '/api/ingest', async (c) => {
   if (!c.p) throw new HttpError(401, 'unauthorized');
   const b = await readJson(c.req, 10_000_000);

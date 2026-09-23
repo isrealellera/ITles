@@ -7,7 +7,7 @@ from sim.protocols import egts, galileosky, wialon_ips
 def _record(i=0, **kw):
     base = dict(index=i, t=1789466400 + i * 30, lat=63.751234, lon=34.301234, valid=True, sats=11, speed_kmh=12.3,
                 course=271.5, alt_m=120, hdop=0.9, inputs=1, power_mv=27900, gps_odometer_m=123456,
-                rpm=1450.0, coolant_c=86, fuel_level_pct=62.4, fuel_total_raw=162469, can_b0_raw=None, can_b1_raw=60358)
+                rpm=1450.0, coolant_c=86, fuel_level_pct=62.4, fuel_total_raw=162469, can_b0_raw=None, engine_hours_x100=301790)
     base.update(kw)
     return galileosky.GalileoRecord(**base)
 
@@ -23,7 +23,7 @@ def test_galileosky_frames_round_trip():
     first = parsed[0]
     assert struct.unpack("<ii", first[0x30][1:]) == (63751234, 34301234)
     assert struct.unpack("<HH", first[0x33]) == (123, 2715)
-    assert struct.unpack("<I", first[0xC3])[0] * 0.05 == 3017.9
+    assert struct.unpack("<I", first[0xDB])[0] / 100 == 3017.9
     assert galileosky.expected_ack(packets[0]) == b"\x02" + packets[0][-2:]
     assert galileosky.parse(packets[0])[0] is True
 

@@ -13,7 +13,7 @@ KNOT_KMH = 1.852
 # attribute name -> (canonical field, multiplier)
 PROFILES: dict[str, dict[str, tuple[str, float]]] = {
     "galileo": {
-        "canB1": ("engine_hours", 0.05),  # H-GS-1: SPN 247 raw
+        "canB1": ("engine_hours", 0.05),  # legacy; official protocol: hours are in tag 0xDB, which Traccar does not decode
         "canB0": ("can_distance_km", 0.005),  # H-GS-1: SPN 917 raw, 5 m
         "odometer": ("gps_odometer_km", 0.001),
         "power": ("power_v", 1.0),

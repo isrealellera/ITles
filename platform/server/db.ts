@@ -44,7 +44,9 @@ export async function openDb(url: string): Promise<Db> {
 
 async function openPglite(path: string): Promise<Db> {
   const { PGlite } = await import('@electric-sql/pglite');
-  const pg = path && path !== 'memory' ? new PGlite(path) : new PGlite();
+  const persistent = !!path && path !== 'memory';
+  if (persistent) (await import('node:fs')).mkdirSync(path, { recursive: true });
+  const pg = persistent ? new PGlite(path) : new PGlite();
   await pg.waitReady;
   const wrap = (q: any): Db => ({
     kind: 'pglite',

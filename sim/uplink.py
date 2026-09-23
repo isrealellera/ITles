@@ -22,7 +22,8 @@ def galileo_record(r: Record) -> galileosky.GalileoRecord:
     return galileosky.GalileoRecord(
         r.index, r.t, r.lat, r.lon, r.valid, r.sats, r.speed_kmh, r.course, r.alt_m, r.hdop,
         1 if r.ignition else 0, round(r.power_v * 1000), round(r.gps_odometer_m),
-        r.rpm, r.coolant_c, r.fuel_level_pct, r.fuel_total_raw, r.can_distance_raw, r.can_hours_raw)
+        r.rpm, r.coolant_c, r.fuel_level_pct, r.fuel_total_raw, r.can_distance_raw,
+        None if r.can_hours_raw is None else r.can_hours_raw * 5)  # SPN 247 0.05 h/bit -> 0xDB 0.01 h
 
 
 def send_galileosky(host: str, port: int, imei: str, records: list[Record], late_s: int = 120) -> dict:

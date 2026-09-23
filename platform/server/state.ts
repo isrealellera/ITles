@@ -133,10 +133,12 @@ export async function summarize(db: Db, ids: string[], viewerOrgId: string, now 
 
     let odometer: CounterView | null = null;
     const oc = cands('odometer_km');
-    const exactOdo = oc.filter((c) => c.method !== 'device');
-    const ob = pickBest(exactOdo);
+    // Priority: CAN/ECU odometer (equals the dashboard) > our validated GNSS odometry >
+    // tracker/platform GNSS counters (unknown filters; -57%..+1138% on slow machines in tests).
+    const ob = pickBest(oc.filter((c) => c.method === 'ecu'));
+    const fallback = pickBest(oc.filter((c) => c.method === 'tracker' || c.method === 'platform'));
     const g = gnss.rows.find((x) => x.machine_id === m.id);
-    if (ob && ob.method !== 'reading') {
+    if (ob) {
       odometer = {
         value: ob.value,
         t: ob.t,
@@ -167,9 +169,19 @@ export async function summarize(db: Db, ids: string[], viewerOrgId: string, now 
           exact: false,
           calibrated: false,
           source_kind: null,
-          note: 'по ГНСС с начала наблюдения',
+          note: 'с начала наблюдения',
         };
       }
+    } else if (fallback) {
+      odometer = {
+        value: fallback.value,
+        t: fallback.t,
+        method: fallback.method,
+        exact: false,
+        calibrated: fallback.calibrated,
+        source_kind: oc.find((c) => c.sourceId === fallback.sourceId)?.kind ?? null,
+        note: 'счётчик трекера/платформы',
+      };
     } else {
       const dev = pickBest(oc);
       if (dev)
